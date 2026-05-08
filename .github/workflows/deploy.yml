@@ -43,7 +43,8 @@ jobs:
 
             cd /root/b-mailer
 
-            pkill -f "b-mailer.jar" || true
+            pkill -f "blexta-mailer" || true
+            sleep 2
 
             JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
 
@@ -55,6 +56,7 @@ jobs:
 
             mkdir -p logs
 
-            nohup java -jar "$JAR_FILE" > logs/app.log 2>&1 & disown
+            setsid java -jar "$JAR_FILE" > logs/app.log 2>&1 < /dev/null &
 
+            sleep 3
             echo "B-Mailer deployed successfully"
