@@ -38,17 +38,13 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          request_pty: true
           script: |
-            set -e
-
-            cd /root/b-mailer
-
             pkill -f "blexta-mailer" || true
             sleep 2
-
-            mkdir -p logs
-
-            setsid java -jar blexta-mailer-0.0.1-SNAPSHOT.jar > logs/app.log 2>&1 < /dev/null &
-
-            sleep 3
+            mkdir -p /root/b-mailer/logs
+            cd /root/b-mailer
+            nohup setsid java -jar blexta-mailer-0.0.1-SNAPSHOT.jar >> logs/app.log 2>&1 &
+            disown $!
+            sleep 5
             echo "B-Mailer deployed successfully"
