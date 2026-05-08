@@ -31,7 +31,7 @@ jobs:
           source: "target/*.jar"
           target: "/root/b-mailer"
 
-      - name: Restart ONLY b-mailer
+      - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -45,12 +45,14 @@ jobs:
             JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
 
             if [ -z "$JAR_FILE" ]; then
-              echo "No JAR found in /root/b-mailer"
+              echo "No JAR found"
               exit 1
             fi
 
             mv "$JAR_FILE" b-mailer.jar
 
-            nohup java -jar b-mailer.jar > b-mailer.log 2>&1 &
+            echo "Starting app..."
+
+            nohup java -jar b-mailer.jar > b-mailer.log 2>&1 < /dev/null
 
             echo "B-Mailer deployed successfully"
