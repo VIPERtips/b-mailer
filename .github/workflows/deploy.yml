@@ -38,10 +38,14 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
+
             cd /root/b-mailer
 
+            echo "Stopping old process..."
             pkill -f "b-mailer.jar" || true
 
+            echo "Finding jar..."
             JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
 
             if [ -z "$JAR_FILE" ]; then
@@ -49,10 +53,11 @@ jobs:
               exit 1
             fi
 
-            mv "$JAR_FILE" b-mailer.jar
+            echo "Deploying jar..."
+            mv -f "$JAR_FILE" b-mailer.jar
 
             echo "Starting app..."
 
-            nohup java -jar b-mailer.jar > b-mailer.log 2>&1 < /dev/null
+            nohup java -jar b-mailer.jar > b-mailer.log 2>&1 & disown
 
             echo "B-Mailer deployed successfully"
