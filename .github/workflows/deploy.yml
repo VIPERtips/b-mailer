@@ -40,24 +40,26 @@ jobs:
           script: |
             set -e
 
+            echo "Moving to project folder..."
             cd /root/b-mailer
 
             echo "Stopping old process..."
             pkill -f "b-mailer.jar" || true
 
             echo "Finding jar..."
-            JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
+            JAR_FILE=$(ls target/*.jar 2>/dev/null | head -n 1)
 
             if [ -z "$JAR_FILE" ]; then
-              echo "No JAR found"
+              echo "No JAR found in target/"
+              ls -la target
               exit 1
             fi
 
             echo "Deploying jar..."
-            mv -f "$JAR_FILE" b-mailer.jar
+            cp "$JAR_FILE" b-mailer.jar
 
             echo "Starting app..."
 
-            nohup java -jar b-mailer.jar > b-mailer.log 2>&1 & disown
+            nohup java -jar b-mailer.jar > logs/app.log 2>&1 & disown
 
             echo "B-Mailer deployed successfully"
