@@ -2,6 +2,7 @@ package co.zw.blexta.emailer.blexta_website;
 
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -11,25 +12,30 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+@Slf4j
 @Service
 public class ContactEmailService {
 
     private static final String FROM_EMAIL = "support@blexta.co.zw";
     private static final String FROM_NAME = "Blexta";
     private static final String BASE_URL = "https://blexta.co.zw";
+    private static final String NOTIFY_EMAIL = "tadiwachipungu2@gmail.com";
+    private static final String CC_EMAIL = "hello@blexta.co.zw";
 
     @Autowired
     private JavaMailSender mailSender;
 
-    private String cachedTemplate;
+    private volatile String cachedTemplate;
 
     @Async("notificationExecutor")
     public void sendContactNotification(ContactEmailRequest request) {
-
         ContactMessage msg = request.getMessage();
 
+        log.info("Processing contact form submission from: {}", msg.getEmail());
+
         EmailBuilder builder = new EmailBuilder()
-                .to("tadiwachipungu2@gmail.com")
+                .to(NOTIFY_EMAIL)
+                .cc(CC_EMAIL)
                 .subject("New Contact Request from Blexta Website")
                 .greeting("Hello Blexta Team,")
                 .message("A new contact form submission has been received on the Blexta website.")
@@ -51,35 +57,43 @@ public class ContactEmailService {
             String processedHtml = fillTemplate(template, builder);
 
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true);
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setFrom(new InternetAddress(FROM_EMAIL, FROM_NAME));
             helper.setTo(builder.toEmail);
+            if (builder.ccEmail != null) {
+                helper.setCc(builder.ccEmail);
+            }
             helper.setSubject(builder.subject);
             helper.setText(processedHtml, true);
 
             mailSender.send(message);
-            System.out.println("Email sent successfully to: " + builder.toEmail + " (CC: hello@blexta.co.zw)");
+            log.info("Contact email dispatched to: {} | CC: {}", builder.toEmail, builder.ccEmail);
 
         } catch (Exception ex) {
+            log.error("Failed to send contact email to {}: {}", builder.toEmail, ex.getMessage(), ex);
             throw new RuntimeException("Failed to send contact email", ex);
         }
     }
 
-
     private String getTemplate() {
         if (cachedTemplate == null) {
-            try (var stream = getClass().getClassLoader()
-                    .getResourceAsStream("templates/blexta-contact.html")) {
+            synchronized (this) {
+                if (cachedTemplate == null) {
+                    try (var stream = getClass().getClassLoader()
+                            .getResourceAsStream("templates/blexta-contact.html")) {
 
-                if (stream == null)
-                    throw new RuntimeException("Contact email template not found");
+                        if (stream == null) {
+                            throw new RuntimeException("Contact email template not found at templates/blexta-contact.html");
+                        }
 
-                cachedTemplate =
-                        new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                        cachedTemplate = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+                        log.info("Email template loaded and cached");
 
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to load contact email template", e);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to load contact email template", e);
+                    }
+                }
             }
         }
         return cachedTemplate;
@@ -90,7 +104,7 @@ public class ContactEmailService {
                 .replace("{{EMAIL_TITLE}}", n(builder.subject))
                 .replace("{{GREETING}}", n(builder.greeting))
                 .replace("{{MESSAGE_CONTENT}}", n(builder.message))
-                .replace("{{CONTACT_BLOCK}}", builder.contactBlock)
+                .replace("{{CONTACT_BLOCK}}", n(builder.contactBlock))
                 .replace("{{FOOTER_MESSAGE}}", n(builder.footerMessage))
                 .replace("{{ICON_URL}}", BASE_URL + "/favicon.ico");
     }
@@ -102,6 +116,7 @@ public class ContactEmailService {
     public static class EmailBuilder {
 
         private String toEmail;
+        private String ccEmail;
         private String subject;
         private String greeting;
         private String message;
@@ -110,6 +125,11 @@ public class ContactEmailService {
 
         public EmailBuilder to(String email) {
             this.toEmail = email;
+            return this;
+        }
+
+        public EmailBuilder cc(String email) {
+            this.ccEmail = email;
             return this;
         }
 
@@ -142,13 +162,17 @@ public class ContactEmailService {
         ) {
             this.contactBlock =
                     "<div class=\"contact-block\">" +
-                            "<p><strong>Name:</strong> " + fullName + "</p>" +
-                            "<p><strong>Email:</strong> " + email + "</p>" +
-                            "<p><strong>Selected Solution:</strong> " + solution + "</p>" +
-                            "<p><strong>Requirements:</strong> " + requirements + "</p>" +
-                            "<p><strong>Submitted At:</strong> " + timestamp + "</p>" +
+                            "<p><strong>Name:</strong> " + n(fullName) + "</p>" +
+                            "<p><strong>Email:</strong> " + n(email) + "</p>" +
+                            "<p><strong>Selected Solution:</strong> " + n(solution) + "</p>" +
+                            "<p><strong>Requirements:</strong> " + n(requirements) + "</p>" +
+                            "<p><strong>Submitted At:</strong> " + n(timestamp) + "</p>" +
                             "</div>";
             return this;
+        }
+
+        private String n(String value) {
+            return value == null ? "" : value;
         }
     }
 }
