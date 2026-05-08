@@ -30,6 +30,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "target/*.jar"
           target: "/root/b-mailer"
+          strip_components: 1
 
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -40,26 +41,20 @@ jobs:
           script: |
             set -e
 
-            echo "Moving to project folder..."
             cd /root/b-mailer
 
-            echo "Stopping old process..."
             pkill -f "b-mailer.jar" || true
 
-            echo "Finding jar..."
-            JAR_FILE=$(ls target/*.jar 2>/dev/null | head -n 1)
+            JAR_FILE=$(ls *.jar 2>/dev/null | head -n 1)
 
             if [ -z "$JAR_FILE" ]; then
-              echo "No JAR found in target/"
-              ls -la target
+              echo "No JAR found in /root/b-mailer"
+              ls -la
               exit 1
             fi
 
-            echo "Deploying jar..."
-            cp "$JAR_FILE" b-mailer.jar
+            mkdir -p logs
 
-            echo "Starting app..."
-
-            nohup java -jar b-mailer.jar > logs/app.log 2>&1 & disown
+            nohup java -jar "$JAR_FILE" > logs/app.log 2>&1 & disown
 
             echo "B-Mailer deployed successfully"
